@@ -169,6 +169,10 @@ exports.delete = async (req, res, next) => {
     }
     return res.redirect('/products');
   } catch (err) {
+    if (err.name === 'SequelizeForeignKeyConstraintError') {
+      req.flash('error', 'Este produto possui transações vinculadas e não pode ser excluído.');
+      return res.redirect('/products');
+    }
     return next(err);
   }
 };
