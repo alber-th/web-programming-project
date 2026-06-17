@@ -47,6 +47,30 @@ body {
   color: #38bdf8;
 }
 
+.nav-user {
+  margin-left: 1rem;
+  color: #cbd5e1;
+  font-size: 0.95rem;
+}
+
+.nav-form {
+  display: inline;
+  margin: 0 0 0 1rem;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #e2e8f0;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.link-button:hover {
+  color: #38bdf8;
+}
+
 main {
   flex: 1;
 }

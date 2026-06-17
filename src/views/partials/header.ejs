@@ -3,8 +3,15 @@
     <a class="brand" href="/">Cloud Key</a>
     <nav class="nav">
       <a href="/">Home</a>
-      <a href="/register">Registrar-se</a>
-      <a href="/login">Entrar</a>
+      <% if (currentUser) { %>
+        <span class="nav-user">Bem-vindo, <%= currentUser.name %></span>
+        <form action="/logout" method="POST" class="nav-form">
+          <button type="submit" class="link-button">Sair</button>
+        </form>
+      <% } else { %>
+        <a href="/register">Registrar-se</a>
+        <a href="/login">Entrar</a>
+      <% } %>
     </nav>
   </div>
 </header>

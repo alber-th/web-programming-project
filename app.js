@@ -36,6 +36,7 @@ app.use((req, res, next) => {
     success: req.flash('success'),
     error: req.flash('error'),
   };
+  res.locals.currentUser = req.session.user || null;
   next();
 });
 

@@ -8,9 +8,9 @@ const router = express.Router();
 router.get('/register', userController.showRegisterForm);
 router.post('/register', userController.register);
 
-// Placeholder até a feature de login ser implementada.
-router.get('/login', (req, res) => {
-  res.render('auth/login', { title: 'Entrar — Cloud Key' });
-});
+router.get('/login', userController.showLoginForm);
+router.post('/login', userController.login);
+
+router.post('/logout', userController.logout);
 
 module.exports = router;
