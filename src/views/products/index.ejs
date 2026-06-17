@@ -1,0 +1,17 @@
+<%- include('../partials/head') %>
+<body>
+  <%- include('../partials/header') %>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Produtos</h1>
+      <%- include('../partials/flash') %>
+      <p class="muted">A listagem de produtos será exibida aqui na próxima entrega.</p>
+
+      <% if (currentUser && currentUser.role === 'ADMIN') { %>
+        <p><a href="/products/new">+ Cadastrar novo produto</a></p>
+      <% } %>
+    </section>
+  </main>
+
+  <%- include('../partials/footer') %>
