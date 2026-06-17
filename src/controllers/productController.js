@@ -10,6 +10,20 @@ function renderCreateForm(res, { formData = {}, errors = {}, status = 200 } = {}
   });
 }
 
+function renderEditForm(res, { product, formData, errors = {}, status = 200 }) {
+  res.status(status).render('products/edit', {
+    title: `Editar ${product.name} — Cloud Key`,
+    product,
+    formData: formData || {
+      name: product.name,
+      platform: product.platform,
+      price: product.price,
+      stock: product.stock,
+    },
+    errors,
+  });
+}
+
 function parsePrice(input) {
   if (input == null || input === '') return null;
   const normalized = String(input).replace(',', '.');
@@ -46,6 +60,18 @@ function validateProductInput({ name, platform, price, stock }) {
   return { errors, parsedPrice, parsedStock };
 }
 
+exports.index = async (req, res, next) => {
+  try {
+    const products = await productService.listProducts();
+    res.render('products/index', {
+      title: 'Produtos — Cloud Key',
+      products,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 exports.showCreateForm = (req, res) => {
   renderCreateForm(res);
 };
@@ -80,7 +106,69 @@ exports.create = async (req, res, next) => {
   }
 };
 
-// Placeholder até a listagem ser implementada na próxima feature.
-exports.index = (req, res) => {
-  res.render('products/index', { title: 'Produtos — Cloud Key' });
+exports.showEditForm = async (req, res, next) => {
+  try {
+    const product = await productService.findProductById(req.params.id);
+    if (!product) {
+      req.flash('error', 'Produto não encontrado.');
+      return res.redirect('/products');
+    }
+    return renderEditForm(res, { product });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+exports.update = async (req, res, next) => {
+  const { name, platform, price, stock } = req.body;
+
+  try {
+    const product = await productService.findProductById(req.params.id);
+    if (!product) {
+      req.flash('error', 'Produto não encontrado.');
+      return res.redirect('/products');
+    }
+
+    const { errors, parsedPrice, parsedStock } = validateProductInput({
+      name,
+      platform,
+      price,
+      stock,
+    });
+
+    if (Object.keys(errors).length > 0) {
+      return renderEditForm(res, {
+        product,
+        formData: { name, platform, price, stock },
+        errors,
+        status: 400,
+      });
+    }
+
+    await productService.updateProduct(req.params.id, {
+      name: name.trim(),
+      platform: platform.trim(),
+      price: parsedPrice,
+      stock: parsedStock,
+    });
+
+    req.flash('success', 'Produto atualizado com sucesso!');
+    return res.redirect('/products');
+  } catch (err) {
+    return next(err);
+  }
+};
+
+exports.delete = async (req, res, next) => {
+  try {
+    const removed = await productService.deleteProduct(req.params.id);
+    if (!removed) {
+      req.flash('error', 'Produto não encontrado.');
+    } else {
+      req.flash('success', 'Produto excluído com sucesso!');
+    }
+    return res.redirect('/products');
+  } catch (err) {
+    return next(err);
+  }
 };

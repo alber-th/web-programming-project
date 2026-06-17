@@ -3,13 +3,57 @@
   <%- include('../partials/header') %>
 
   <main class="container">
-    <section class="hero">
-      <h1>Produtos</h1>
-      <%- include('../partials/flash') %>
-      <p class="muted">A listagem de produtos será exibida aqui na próxima entrega.</p>
+    <section class="page">
+      <div class="page-header">
+        <h1>Produtos</h1>
+        <% if (currentUser && currentUser.role === 'ADMIN') { %>
+          <a href="/products/new" class="btn-primary inline">+ Novo produto</a>
+        <% } %>
+      </div>
 
-      <% if (currentUser && currentUser.role === 'ADMIN') { %>
-        <p><a href="/products/new">+ Cadastrar novo produto</a></p>
+      <%- include('../partials/flash') %>
+
+      <% if (products.length === 0) { %>
+        <p class="muted">Nenhum produto cadastrado ainda.</p>
+      <% } else { %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Plataforma</th>
+              <th>Preço</th>
+              <th>Estoque</th>
+              <% if (currentUser && currentUser.role === 'ADMIN') { %>
+                <th>Ações</th>
+              <% } %>
+            </tr>
+          </thead>
+          <tbody>
+            <% products.forEach(function (product) { %>
+              <tr>
+                <td><%= product.name %></td>
+                <td><%= product.platform %></td>
+                <td>R$ <%= Number(product.price).toFixed(2).replace('.', ',') %></td>
+                <td><%= product.stock %></td>
+                <% if (currentUser && currentUser.role === 'ADMIN') { %>
+                  <td>
+                    <div class="actions">
+                      <a class="btn-edit" href="/products/<%= product.id %>/edit">Editar</a>
+                      <form
+                        class="inline-form"
+                        action="/products/<%= product.id %>?_method=DELETE"
+                        method="POST"
+                        onsubmit="return confirm('Tem certeza que deseja excluir este produto?');"
+                      >
+                        <button type="submit" class="btn-danger">Excluir</button>
+                      </form>
+                    </div>
+                  </td>
+                <% } %>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
       <% } %>
     </section>
   </main>

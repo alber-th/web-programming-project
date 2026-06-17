@@ -5,21 +5,15 @@ const productController = require('../controllers/productController');
 const { isAuthenticated, requireRole } = require('../middlewares/auth');
 
 const router = express.Router();
+const adminOnly = [isAuthenticated, requireRole('ADMIN')];
 
 router.get('/products', productController.index);
 
-router.get(
-  '/products/new',
-  isAuthenticated,
-  requireRole('ADMIN'),
-  productController.showCreateForm
-);
+router.get('/products/new', ...adminOnly, productController.showCreateForm);
+router.post('/products', ...adminOnly, productController.create);
 
-router.post(
-  '/products',
-  isAuthenticated,
-  requireRole('ADMIN'),
-  productController.create
-);
+router.get('/products/:id(\\d+)/edit', ...adminOnly, productController.showEditForm);
+router.put('/products/:id(\\d+)', ...adminOnly, productController.update);
+router.delete('/products/:id(\\d+)', ...adminOnly, productController.delete);
 
 module.exports = router;
