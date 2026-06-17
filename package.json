@@ -5,7 +5,12 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "dev": "nodemon app.js",
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:migrate:undo": "sequelize-cli db:migrate:undo",
+    "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all",
+    "db:seed": "sequelize-cli db:seed:all",
+    "db:seed:undo": "sequelize-cli db:seed:undo:all"
   },
   "keywords": ["ecommerce", "games", "express", "ejs", "sequelize", "mvc"],
   "author": "Alberth Cavalcanti, Filipe Andrade, Ivo Pinheiro, Lívia Fernandes",
