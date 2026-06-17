@@ -1,0 +1,52 @@
+<%- include('../partials/head') %>
+<body>
+  <%- include('../partials/header') %>
+
+  <main class="container">
+    <section class="page">
+      <div class="page-header">
+        <h1><%= isAdmin ? 'Todas as transações' : 'Minhas transações' %></h1>
+      </div>
+
+      <%- include('../partials/flash') %>
+
+      <% if (transactions.length === 0) { %>
+        <p class="muted">
+          Nenhuma transação registrada ainda.
+          <a href="/products">Ver produtos</a>.
+        </p>
+      <% } else { %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <% if (isAdmin) { %><th>Usuário</th><% } %>
+              <th>Produto</th>
+              <th>Quantidade</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% transactions.forEach(function (tx) { %>
+              <tr>
+                <td>
+                  <%= new Date(tx.createdAt).toLocaleString('pt-BR', {
+                    day: '2-digit', month: '2-digit', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                  }) %>
+                </td>
+                <% if (isAdmin) { %>
+                  <td><%= tx.user ? tx.user.name : '—' %></td>
+                <% } %>
+                <td><%= tx.product ? tx.product.name : '(produto removido)' %></td>
+                <td><%= tx.quantity %></td>
+                <td>R$ <%= Number(tx.totalPrice).toFixed(2).replace('.', ',') %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+    </section>
+  </main>
+
+  <%- include('../partials/footer') %>

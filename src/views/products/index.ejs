@@ -23,7 +23,7 @@
               <th>Plataforma</th>
               <th>Preço</th>
               <th>Estoque</th>
-              <% if (currentUser && currentUser.role === 'ADMIN') { %>
+              <% if (currentUser) { %>
                 <th>Ações</th>
               <% } %>
             </tr>
@@ -35,18 +35,25 @@
                 <td><%= product.platform %></td>
                 <td>R$ <%= Number(product.price).toFixed(2).replace('.', ',') %></td>
                 <td><%= product.stock %></td>
-                <% if (currentUser && currentUser.role === 'ADMIN') { %>
+                <% if (currentUser) { %>
                   <td>
                     <div class="actions">
-                      <a class="btn-edit" href="/products/<%= product.id %>/edit">Editar</a>
-                      <form
-                        class="inline-form"
-                        action="/products/<%= product.id %>?_method=DELETE"
-                        method="POST"
-                        onsubmit="return confirm('Tem certeza que deseja excluir este produto?');"
-                      >
-                        <button type="submit" class="btn-danger">Excluir</button>
+                      <form class="inline-form" action="/transactions" method="POST">
+                        <input type="hidden" name="productId" value="<%= product.id %>" />
+                        <input type="hidden" name="quantity" value="1" />
+                        <button type="submit" class="btn-buy">Comprar</button>
                       </form>
+                      <% if (currentUser.role === 'ADMIN') { %>
+                        <a class="btn-edit" href="/products/<%= product.id %>/edit">Editar</a>
+                        <form
+                          class="inline-form"
+                          action="/products/<%= product.id %>?_method=DELETE"
+                          method="POST"
+                          onsubmit="return confirm('Tem certeza que deseja excluir este produto?');"
+                        >
+                          <button type="submit" class="btn-danger">Excluir</button>
+                        </form>
+                      <% } %>
                     </div>
                   </td>
                 <% } %>

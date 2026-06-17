@@ -5,6 +5,7 @@
       <a href="/">Home</a>
       <a href="/products">Produtos</a>
       <% if (currentUser) { %>
+        <a href="/transactions"><%= currentUser.role === 'ADMIN' ? 'Transações' : 'Minhas Transações' %></a>
         <% if (currentUser.role === 'ADMIN') { %>
           <a href="/products/new">Novo Produto</a>
         <% } %>
