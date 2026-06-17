@@ -4,6 +4,7 @@ const path = require('path');
 const express = require('express');
 const session = require('express-session');
 const flash = require('connect-flash');
+const methodOverride = require('method-override');
 
 const indexRoutes = require('./src/routes');
 const authRoutes = require('./src/routes/auth');
@@ -17,6 +18,7 @@ app.set('views', path.join(__dirname, 'src', 'views'));
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(methodOverride('_method'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(
