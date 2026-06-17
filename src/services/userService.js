@@ -14,7 +14,15 @@ async function registerUser({ name, email, password, role = 'CLIENTE' }) {
   return User.create({ name, email, passwordHash, role });
 }
 
+async function verifyCredentials(email, password) {
+  const user = await findByEmail(email);
+  if (!user) return null;
+  const matches = await bcrypt.compare(password, user.passwordHash);
+  return matches ? user : null;
+}
+
 module.exports = {
   findByEmail,
   registerUser,
+  verifyCredentials,
 };

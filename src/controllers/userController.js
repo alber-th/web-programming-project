@@ -13,6 +13,14 @@ function renderRegisterForm(res, { formData = {}, errors = {}, status = 200 } = 
   });
 }
 
+function renderLoginForm(res, { formData = {}, errors = {}, status = 200 } = {}) {
+  res.status(status).render('auth/login', {
+    title: 'Entrar — Cloud Key',
+    formData,
+    errors,
+  });
+}
+
 function validateRegisterInput({ name, email, password, passwordConfirmation }) {
   const errors = {};
 
@@ -80,4 +88,59 @@ exports.register = async (req, res, next) => {
     }
     return next(err);
   }
+};
+
+exports.showLoginForm = (req, res) => {
+  renderLoginForm(res);
+};
+
+exports.login = async (req, res, next) => {
+  const { email, password } = req.body;
+  const formData = { email };
+  const errors = {};
+
+  if (!email || !email.trim()) errors.email = 'E-mail é obrigatório.';
+  if (!password) errors.password = 'Senha é obrigatória.';
+
+  if (Object.keys(errors).length > 0) {
+    return renderLoginForm(res, { formData, errors, status: 400 });
+  }
+
+  try {
+    const user = await userService.verifyCredentials(
+      email.trim().toLowerCase(),
+      password
+    );
+
+    if (!user) {
+      return renderLoginForm(res, {
+        formData,
+        errors: { _global: 'E-mail ou senha inválidos.' },
+        status: 401,
+      });
+    }
+
+    req.session.user = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    };
+
+    const returnTo = req.session.returnTo || '/';
+    delete req.session.returnTo;
+
+    req.flash('success', `Bem-vindo de volta, ${user.name}!`);
+    return res.redirect(returnTo);
+  } catch (err) {
+    return next(err);
+  }
+};
+
+exports.logout = (req, res, next) => {
+  req.session.destroy((err) => {
+    if (err) return next(err);
+    res.clearCookie('connect.sid');
+    return res.redirect('/');
+  });
 };
