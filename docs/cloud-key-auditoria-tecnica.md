@@ -9,8 +9,8 @@
 | Contexto | Disciplina de Programação para Web — 1º Semestre de 2026 |
 | Repositório | https://github.com/alber-th/web-programming-project |
 | Branch principal | `main` |
-| Status | Projeto 2 entregue (6 funcionalidades + transações) |
-| Última revisão | 2026-06-17 |
+| Status | Projeto 2 entregue (6 funcionalidades + transações); aderência ao DAS em ~50% (ver §14) |
+| Última revisão | 2026-06-18 (v1.1 — adiciona §14 sobre aderência ao DAS) |
 
 ---
 
@@ -29,7 +29,8 @@
 11. [Configuração e execução](#11-configuração-e-execução)
 12. [Riscos técnicos e melhorias futuras](#12-riscos-técnicos-e-melhorias-futuras)
 13. [Observações de auditoria](#13-observações-de-auditoria)
-14. [Apêndices](#14-apêndices)
+14. [Aderência ao Documento de Arquitetura](#14-aderência-ao-documento-de-arquitetura)
+15. [Apêndices](#15-apêndices)
 
 ---
 
@@ -64,6 +65,8 @@ Entregar uma aplicação web persistente que demonstre, em código de qualidade 
 | 5. Edição de produto/transação | Implementado (Produto) |
 | 6. Exclusão de produto/transação | Implementado (Produto) |
 | **Extra**: Registro de Transações (compras) | Implementado |
+
+> **Nota sobre escopo**: a tabela acima reflete os 6 requisitos do **Projeto 2 da disciplina**, todos entregues. O **Documento de Arquitetura (DAS)** prevê escopo arquitetural mais amplo (carrinho, checkout, entidades Key/ItemPedido, gateway de pagamento, e-mail). A análise de aderência ao DAS — com gaps prioritários — está em §14.
 
 ### 1.5 Equipe
 
@@ -709,6 +712,8 @@ Após promover, é necessário **logout/login** para a sessão pegar o novo role
 
 ## 12. Riscos técnicos e melhorias futuras
 
+> **Priorização**: itens marcados como "limitação funcional" nesta seção (§12.2) **são requisitos arquiteturais do DAS**, não apenas melhorias opcionais. Especificamente: carrinho, entidades Key/ItemPedido, integração de pagamento e e-mail. Ver §14 para o roadmap completo de aderência.
+
 ### 12.1 Riscos de segurança identificados
 
 | Risco | Severidade | Descrição | Mitigação proposta |
@@ -806,9 +811,101 @@ Todos os 6 PRs foram mergeados em `main` com `--merge` (merge commit), preservan
 
 ---
 
-## 14. Apêndices
+## 14. Aderência ao Documento de Arquitetura
 
-### 14.1 Glossário
+Esta seção resume a análise de aderência da implementação atual ao **Documento de Arquitetura de Software (DAS)** do Cloud Key (`docs/Cloud Key - Documento Arquitetura.pdf`). A análise completa, com tabelas detalhadas por dimensão, está em [`aderencia-ao-das.md`](./aderencia-ao-das.md).
+
+### 14.1 Aderência global
+
+**~50%**. A implementação cumpre fielmente as decisões **estruturais** do DAS (stack, MVC, autenticação, autorização), mas tem lacunas significativas no modelo de domínio, no caso de uso central de compra e em integrações externas.
+
+| Dimensão | Aderência |
+|---|---|
+| Stack e organização MVC | **95%** ✅ |
+| Casos de uso (7 previstos) | **57%** ⚠️ |
+| Modelo de domínio (5 entidades) | **40%** ❌ |
+| CU004 (Comprar key) — caso central | **20%** ❌ |
+| QoS (8 atributos) | **38%** ⚠️ |
+| Integrações externas | **0%** ❌ |
+| Visão de Implantação | **30%** ⚠️ |
+
+### 14.2 Gaps críticos do DAS não atendidos
+
+#### Modelo de domínio (§4 do MER previsto)
+
+- ❌ Entidade **Key** não existe — sem ela, o sistema não tem como entregar a chave ao cliente após a compra (parte essencial de CU004 e CU007).
+- ❌ Entidade **ItemPedido** não existe — `Transaction` colapsa Pedido + Item em uma só tabela, impedindo carrinho com múltiplos jogos.
+- ⚠️ **Pedido** (Transaction) sem campo `status` (pendente/concluído/cancelado).
+- ⚠️ **Jogo** (Product) sem atributos `descricao` e `ativo` (sem soft delete).
+
+#### Casos de uso
+
+- ⚠️ **CU004 — Comprar key**: implementação atual é "compra de um clique" (POST `/transactions` com `quantity=1`); DAS prevê carrinho → checkout → pagamento → reserva de key → entrega via e-mail. Ver §14.3.
+- ⚠️ **CU005 — Gerenciar catálogo**: CRUD de jogos ✅; CRUD de **keys** ❌.
+- ❌ **CU006 — Gerenciar usuários**: sem UI; promoção a ADMIN só via SQL.
+- ⚠️ **CU007 — Histórico + visualizar chave**: histórico ✅; entrega de chave ❌.
+
+#### Serviços de domínio
+
+- ❌ `PagamentoService` (com adapter para gateway externo) — não existe.
+- ❌ `KeyService` (reserva e marcação de chaves vendidas) — não existe.
+
+#### Integrações externas
+
+- ❌ Gateway de pagamento — fluxo de autorização ausente.
+- ❌ Serviço de e-mail — confirmação e envio da chave ausentes.
+
+#### QoS
+
+- ❌ HTTPS / proxy reverso (aceitável em dev).
+- ❌ Cache de catálogo.
+- ❌ Paginação (DAS prevê 500–2.000 títulos).
+- ❌ Session store persistente (impede escalabilidade horizontal).
+- ❌ Dockerfile / containers.
+
+### 14.3 CU004 — etapa a etapa
+
+O DAS dedica 4 páginas ao CU004 com diagramas de classes e de sequência. Comparativo:
+
+| Etapa prevista | Status |
+|---|---|
+| Tela de carrinho/checkout | ❌ |
+| Auth middleware | ✅ |
+| `PedidoController` recebe finalização | ⚠️ via `transactionController` (sem carrinho) |
+| `PedidoService` valida carrinho | ❌ |
+| Consulta `KeyRepository` para disponibilidade | ❌ Sem Key |
+| Cálculo de `valor_total` server-side | ✅ |
+| `PagamentoService → Gateway` | ❌ |
+| Persistência transacional (Pedido + ItemPedido) | ⚠️ Só `Transaction.create` direto |
+| `KeyService.reservarKey` | ❌ |
+| `Pedido.status = 'concluído'` | ❌ Sem status |
+| Envio de e-mail com chave | ❌ |
+| View de confirmação com chave entregue | ❌ |
+
+### 14.4 Roadmap recomendado (visão condensada)
+
+Detalhes em [`aderencia-ao-das.md`](./aderencia-ao-das.md) §10.
+
+| Fase | Foco | Itens |
+|---|---|---|
+| **Fase 1** | Domínio | Migrations + models de `Key` e `ItemPedido`; refator `Transaction` → `Pedido` com `status` |
+| **Fase 2** | CU004 completo | Carrinho em sessão + `/cart` + `/checkout`; `PedidoService` em `sequelize.transaction()`; `KeyService.reservarKey` |
+| **Fase 3** | Integrações mock | `PagamentoService` + adapter (gateway mock); `EmailService` + adapter |
+| **Fase 4** | Gestão e QoS | CU006 (UI de usuários); paginação; session store persistente; Dockerfile |
+
+### 14.5 Divergências aceitáveis (não-gaps)
+
+Decisões da implementação que **divergem do DAS mas têm justificativa técnica**:
+
+- **Sem camada de Repository explícita** — services consomem models do Sequelize direto. O Sequelize já age como Repository; introduzir uma camada adicional seria over-engineering nesta escala. Em projeto maior, justificaria reabrir.
+- **Nomenclatura en (`Product`, `Transaction`) em vez de pt-BR (`Jogo`, `Pedido`)** — coerente com a comunidade Node.js e bibliotecas; aceitável tecnicamente, mas inconsistente com o DAS como artefato de referência.
+- **Camada de Service adicional ao MVC clássico** — refinamento aceitável e até **recomendado** pelo DAS (§5 menciona "serviços de negócio" no Domínio).
+
+---
+
+## 15. Apêndices
+
+### 15.1 Glossário
 
 | Termo | Definição |
 |---|---|
@@ -819,19 +916,22 @@ Todos os 6 PRs foram mergeados em `main` com `--merge` (merge commit), preservan
 | **SRP** | Single Responsibility Principle — uma classe/módulo deve ter uma única razão para mudar. |
 | **ORM** | Object-Relational Mapping — camada que traduz entre objetos do código e tabelas relacionais. |
 
-### 14.2 Referências
+### 15.2 Referências
 
 - Express: https://expressjs.com/
 - Sequelize: https://sequelize.org/
 - EJS: https://ejs.co/
 - OWASP Top 10: https://owasp.org/Top10/
 - Documentação do repositório: `README.md`
+- Documento de Arquitetura de Software: `docs/Cloud Key - Documento Arquitetura.pdf`
+- Análise de aderência detalhada: [`aderencia-ao-das.md`](./aderencia-ao-das.md)
 
-### 14.3 Histórico de auditorias
+### 15.3 Histórico de auditorias
 
 | Data | Versão | Autor | Notas |
 |---|---|---|---|
 | 2026-06-17 | 1.0 | Equipe Cloud Key | Auditoria inicial pós-entrega do Projeto 2 |
+| 2026-06-18 | 1.1 | Equipe Cloud Key | Adiciona §14 — análise de aderência ao DAS; atualiza §1.4 e §12 com referências cruzadas |
 
 ---
 
