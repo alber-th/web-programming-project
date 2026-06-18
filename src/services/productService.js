@@ -2,8 +2,8 @@
 
 const { Product } = require('../models');
 
-async function createProduct({ name, platform, price, stock = 0 }) {
-  return Product.create({ name, platform, price, stock });
+async function createProduct({ name, platform, price, stock = 0, imageUrl = null, category = null }) {
+  return Product.create({ name, platform, price, stock, imageUrl, category });
 }
 
 async function listProducts() {
@@ -14,10 +14,10 @@ async function findProductById(id) {
   return Product.findByPk(id);
 }
 
-async function updateProduct(id, { name, platform, price, stock }) {
+async function updateProduct(id, { name, platform, price, stock, imageUrl, category }) {
   const product = await Product.findByPk(id);
   if (!product) return null;
-  await product.update({ name, platform, price, stock });
+  await product.update({ name, platform, price, stock, imageUrl, category });
   return product;
 }
 

@@ -19,7 +19,9 @@
         <table class="data-table">
           <thead>
             <tr>
+              <th>Capa</th>
               <th>Nome</th>
+              <th>Categoria</th>
               <th>Plataforma</th>
               <th>Preço</th>
               <th>Estoque</th>
@@ -31,7 +33,21 @@
           <tbody>
             <% products.forEach(function (product) { %>
               <tr>
+                <td>
+                  <% if (product.imageUrl) { %>
+                    <img src="<%= product.imageUrl %>" alt="<%= product.name %>" class="product-thumb" loading="lazy" />
+                  <% } else { %>
+                    <div class="product-thumb product-thumb-placeholder"></div>
+                  <% } %>
+                </td>
                 <td><%= product.name %></td>
+                <td>
+                  <% if (product.category) { %>
+                    <span class="badge"><%= product.category %></span>
+                  <% } else { %>
+                    <span class="muted">—</span>
+                  <% } %>
+                </td>
                 <td><%= product.platform %></td>
                 <td>R$ <%= Number(product.price).toFixed(2).replace('.', ',') %></td>
                 <td><%= product.stock %></td>

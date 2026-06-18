@@ -33,6 +33,14 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: 0,
         validate: { min: 0 },
       },
+      imageUrl: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+      },
+      category: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+      },
     },
     {
       sequelize,
