@@ -38,6 +38,28 @@
         </div>
 
         <div class="field">
+          <label for="category">Categoria</label>
+          <input
+            type="text"
+            id="category"
+            name="category"
+            value="<%= formData.category || '' %>"
+            placeholder="RPG, FPS, Aventura, etc."
+          />
+        </div>
+
+        <div class="field">
+          <label for="imageUrl">URL da imagem de capa</label>
+          <input
+            type="url"
+            id="imageUrl"
+            name="imageUrl"
+            value="<%= formData.imageUrl || '' %>"
+            placeholder="https://..."
+          />
+        </div>
+
+        <div class="field">
           <label for="price">Preço (R$)</label>
           <input
             type="number"

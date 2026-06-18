@@ -2,11 +2,107 @@
 <body>
   <%- include('partials/header') %>
 
-  <main class="container">
+  <main>
     <section class="hero">
-      <h1>Cloud Key</h1>
-      <p>Sua nova loja de chaves digitais de jogos.</p>
-      <p class="muted">Base do projeto rodando com Express + EJS + Sequelize.</p>
+      <div class="container hero-inner">
+        <div class="hero-content">
+          <h1>Cloud Key</h1>
+          <p class="hero-lead">Sua loja de chaves digitais com os melhores títulos do mundo dos games.</p>
+          <p class="muted">Compre, baixe e jogue em minutos.</p>
+        </div>
+        <% if (currentUser && currentUser.role === 'ADMIN') { %>
+          <a href="/products/new" class="btn-primary inline hero-admin-cta">+ Adicionar produto</a>
+        <% } %>
+      </div>
+    </section>
+
+    <%- include('partials/flash') %>
+
+    <section class="featured-section">
+      <div class="container">
+        <h2 class="section-title">🔥 Jogos em alta</h2>
+        <div class="carousel" role="region" aria-label="Carrossel de jogos em alta">
+          <% featured.forEach(function (item) { %>
+            <article class="carousel-item <%= item.preorder ? 'carousel-item-featured' : '' %>">
+              <div class="carousel-item-cover">
+                <% if (item.imageUrl) { %>
+                  <img src="<%= item.imageUrl %>" alt="Capa de <%= item.name %>" loading="lazy" />
+                <% } else if (item.preorder) { %>
+                  <div class="carousel-item-placeholder-preorder">
+                    <span class="preorder-title-overlay"><%= item.name %></span>
+                  </div>
+                <% } else { %>
+                  <div class="carousel-item-placeholder"></div>
+                <% } %>
+                <span class="carousel-item-status <%= item.preorder ? 'status-preorder' : 'status-available' %>">
+                  <%= item.status %>
+                </span>
+              </div>
+              <div class="carousel-item-body">
+                <h3 class="carousel-item-title"><%= item.name %></h3>
+                <% if (item.category) { %>
+                  <p class="carousel-item-meta"><%= item.category %><% if (item.platform) { %> · <%= item.platform %><% } %></p>
+                <% } else if (item.platform) { %>
+                  <p class="carousel-item-meta"><%= item.platform %></p>
+                <% } %>
+                <p class="carousel-item-price">R$ <%= Number(item.price).toFixed(2).replace('.', ',') %></p>
+                <% if (item.preorder) { %>
+                  <p class="carousel-item-release"><%= item.releaseInfo %></p>
+                  <button type="button" class="btn-preorder" disabled>Pré-reserva em breve</button>
+                <% } else if (item.id && currentUser) { %>
+                  <form action="/transactions" method="POST" class="inline-form">
+                    <input type="hidden" name="productId" value="<%= item.id %>" />
+                    <input type="hidden" name="quantity" value="1" />
+                    <button type="submit" class="btn-buy full">Comprar</button>
+                  </form>
+                <% } else if (item.id) { %>
+                  <a href="/login" class="btn-primary inline full">Entrar para comprar</a>
+                <% } %>
+              </div>
+            </article>
+          <% }); %>
+        </div>
+      </div>
+    </section>
+
+    <section class="container catalog-section">
+      <h2 class="section-title">Catálogo</h2>
+      <% if (products.length === 0) { %>
+        <p class="muted">Nenhum produto cadastrado ainda.</p>
+      <% } else { %>
+        <div class="product-grid">
+          <% products.forEach(function (product) { %>
+            <article class="product-card">
+              <div class="product-card-cover">
+                <% if (product.imageUrl) { %>
+                  <img src="<%= product.imageUrl %>" alt="Capa de <%= product.name %>" loading="lazy" />
+                <% } else { %>
+                  <div class="product-card-placeholder"></div>
+                <% } %>
+              </div>
+              <div class="product-card-body">
+                <% if (product.category) { %>
+                  <span class="badge"><%= product.category %></span>
+                <% } %>
+                <h3 class="product-card-title"><%= product.name %></h3>
+                <p class="product-card-meta"><%= product.platform %></p>
+                <p class="product-card-price">R$ <%= Number(product.price).toFixed(2).replace('.', ',') %></p>
+              </div>
+              <div class="product-card-actions">
+                <% if (currentUser) { %>
+                  <form action="/transactions" method="POST" class="inline-form">
+                    <input type="hidden" name="productId" value="<%= product.id %>" />
+                    <input type="hidden" name="quantity" value="1" />
+                    <button type="submit" class="btn-buy full">Comprar</button>
+                  </form>
+                <% } else { %>
+                  <a href="/login" class="btn-primary inline full">Entrar para comprar</a>
+                <% } %>
+              </div>
+            </article>
+          <% }); %>
+        </div>
+      <% } %>
     </section>
   </main>
 

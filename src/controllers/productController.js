@@ -19,6 +19,8 @@ function renderEditForm(res, { product, formData, errors = {}, status = 200 }) {
       platform: product.platform,
       price: product.price,
       stock: product.stock,
+      imageUrl: product.imageUrl,
+      category: product.category,
     },
     errors,
   });
@@ -77,8 +79,8 @@ exports.showCreateForm = (req, res) => {
 };
 
 exports.create = async (req, res, next) => {
-  const { name, platform, price, stock } = req.body;
-  const formData = { name, platform, price, stock };
+  const { name, platform, price, stock, imageUrl, category } = req.body;
+  const formData = { name, platform, price, stock, imageUrl, category };
 
   const { errors, parsedPrice, parsedStock } = validateProductInput({
     name,
@@ -97,6 +99,8 @@ exports.create = async (req, res, next) => {
       platform: platform.trim(),
       price: parsedPrice,
       stock: parsedStock,
+      imageUrl: imageUrl && imageUrl.trim() ? imageUrl.trim() : null,
+      category: category && category.trim() ? category.trim() : null,
     });
 
     req.flash('success', 'Produto criado com sucesso!');
@@ -120,7 +124,7 @@ exports.showEditForm = async (req, res, next) => {
 };
 
 exports.update = async (req, res, next) => {
-  const { name, platform, price, stock } = req.body;
+  const { name, platform, price, stock, imageUrl, category } = req.body;
 
   try {
     const product = await productService.findProductById(req.params.id);
@@ -139,7 +143,7 @@ exports.update = async (req, res, next) => {
     if (Object.keys(errors).length > 0) {
       return renderEditForm(res, {
         product,
-        formData: { name, platform, price, stock },
+        formData: { name, platform, price, stock, imageUrl, category },
         errors,
         status: 400,
       });
@@ -150,6 +154,8 @@ exports.update = async (req, res, next) => {
       platform: platform.trim(),
       price: parsedPrice,
       stock: parsedStock,
+      imageUrl: imageUrl && imageUrl.trim() ? imageUrl.trim() : null,
+      category: category && category.trim() ? category.trim() : null,
     });
 
     req.flash('success', 'Produto atualizado com sucesso!');
