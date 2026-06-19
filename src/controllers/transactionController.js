@@ -2,38 +2,6 @@
 
 const transactionService = require('../services/transactionService');
 
-exports.createForCurrentUser = async (req, res, next) => {
-  const productId = Number(req.body.productId);
-  const quantity = Number(req.body.quantity) || 1;
-
-  if (!Number.isInteger(productId) || productId <= 0) {
-    req.flash('error', 'Produto inválido.');
-    return res.redirect('/products');
-  }
-
-  if (!Number.isInteger(quantity) || quantity < 1) {
-    req.flash('error', 'Quantidade inválida.');
-    return res.redirect('/products');
-  }
-
-  try {
-    await transactionService.createTransaction({
-      userId: req.session.user.id,
-      productId,
-      quantity,
-    });
-
-    req.flash('success', 'Compra registrada com sucesso!');
-    return res.redirect('/transactions');
-  } catch (err) {
-    if (err instanceof transactionService.ProductNotFoundError) {
-      req.flash('error', 'Produto não encontrado.');
-      return res.redirect('/products');
-    }
-    return next(err);
-  }
-};
-
 exports.listForCurrentUser = async (req, res, next) => {
   try {
     const user = req.session.user;
@@ -49,6 +17,44 @@ exports.listForCurrentUser = async (req, res, next) => {
       isAdmin,
     });
   } catch (err) {
+    return next(err);
+  }
+};
+
+exports.show = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const tx = await transactionService.findByIdForUser(id, req.session.user.id);
+    if (!tx) {
+      req.flash('error', 'Transação não encontrada.');
+      return res.redirect('/transactions');
+    }
+    res.render('transactions/show', {
+      title: `Pedido #${tx.id} — Cloud Key`,
+      transaction: tx,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+exports.cancel = async (req, res, next) => {
+  const id = Number(req.params.id);
+  const reason = (req.body.reason || '').trim() || null;
+
+  try {
+    await transactionService.cancelById(id, req.session.user.id, { reason });
+    req.flash('success', `Pedido #${id} cancelado. Estoque devolvido.`);
+    return res.redirect('/transactions');
+  } catch (err) {
+    if (
+      err.code === 'NOT_FOUND' ||
+      err.code === 'FORBIDDEN' ||
+      err.name === 'InvalidTransitionError'
+    ) {
+      req.flash('error', err.message);
+      return res.redirect('/transactions');
+    }
     return next(err);
   }
 };

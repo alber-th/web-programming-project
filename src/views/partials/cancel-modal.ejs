@@ -1,0 +1,23 @@
+<div id="cancel-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="cancel-modal-title" hidden>
+  <div class="modal-backdrop" data-close-modal></div>
+  <div class="modal-content">
+    <h2 id="cancel-modal-title">Cancelar pedido</h2>
+    <p>Esta ação não pode ser desfeita. O estoque dos itens será devolvido automaticamente.</p>
+    <form id="cancel-form" method="POST">
+      <div class="field">
+        <label for="cancel-reason">Motivo (opcional)</label>
+        <textarea
+          id="cancel-reason"
+          name="reason"
+          rows="3"
+          maxlength="250"
+          placeholder="Por exemplo: mudei de ideia"
+        ></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="link-button" data-close-modal>Voltar</button>
+        <button type="submit" class="btn-danger">Confirmar cancelamento</button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -10,6 +10,9 @@ const indexRoutes = require('./src/routes');
 const authRoutes = require('./src/routes/auth');
 const productRoutes = require('./src/routes/products');
 const transactionRoutes = require('./src/routes/transactions');
+const cartRoutes = require('./src/routes/cart');
+const checkoutRoutes = require('./src/routes/checkout');
+const cartService = require('./src/services/cartService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,12 +44,15 @@ app.use((req, res, next) => {
     error: req.flash('error'),
   };
   res.locals.currentUser = req.session.user || null;
+  res.locals.cartCount = cartService.totalQuantity(req);
   next();
 });
 
 app.use('/', indexRoutes);
 app.use('/', authRoutes);
 app.use('/', productRoutes);
+app.use('/', cartRoutes);
+app.use('/', checkoutRoutes);
 app.use('/', transactionRoutes);
 
 app.use((req, res) => {

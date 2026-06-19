@@ -4,6 +4,12 @@
     <nav class="nav">
       <a href="/">Home</a>
       <a href="/products">Produtos</a>
+      <a href="/cart" class="nav-cart" aria-label="Carrinho">
+        🛒 Carrinho
+        <% if (typeof cartCount !== 'undefined' && cartCount > 0) { %>
+          <span class="cart-badge"><%= cartCount %></span>
+        <% } %>
+      </a>
       <% if (currentUser) { %>
         <a href="/transactions"><%= currentUser.role === 'ADMIN' ? 'Transações' : 'Minhas Transações' %></a>
         <% if (currentUser.role === 'ADMIN') { %>

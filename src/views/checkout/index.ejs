@@ -1,0 +1,119 @@
+<%- include('../partials/head') %>
+<body>
+  <%- include('../partials/header') %>
+
+  <main class="container">
+    <section class="page">
+      <div class="page-header">
+        <h1>Checkout</h1>
+        <a href="/cart" class="muted">← Voltar ao carrinho</a>
+      </div>
+
+      <%- include('../partials/flash') %>
+
+      <div class="checkout-layout">
+        <form id="checkout-form" action="/checkout" method="POST" novalidate class="form-card checkout-form">
+          <h2>Dados do pagamento</h2>
+          <p class="muted small">⚠️ Simulação acadêmica. Nenhum dado é enviado a gateways reais.</p>
+
+          <div class="field">
+            <label for="cardholderName">Nome impresso no cartão</label>
+            <input
+              type="text"
+              id="cardholderName"
+              name="cardholderName"
+              value="<%= formData.cardholderName || '' %>"
+              autocomplete="cc-name"
+              required
+            />
+            <% if (errors.cardholderName) { %>
+              <span class="field-error"><%= errors.cardholderName %></span>
+            <% } %>
+          </div>
+
+          <div class="field">
+            <label for="cardNumber">Número do cartão</label>
+            <input
+              type="text"
+              id="cardNumber"
+              name="cardNumber"
+              value="<%= formData.cardNumber || '' %>"
+              inputmode="numeric"
+              autocomplete="cc-number"
+              placeholder="0000 0000 0000 0000"
+              maxlength="23"
+              required
+            />
+            <% if (errors.cardNumber) { %>
+              <span class="field-error"><%= errors.cardNumber %></span>
+            <% } %>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="cardExpiry">Validade</label>
+              <input
+                type="text"
+                id="cardExpiry"
+                name="cardExpiry"
+                value="<%= formData.cardExpiry || '' %>"
+                inputmode="numeric"
+                autocomplete="cc-exp"
+                placeholder="MM/AA"
+                maxlength="5"
+                required
+              />
+              <% if (errors.cardExpiry) { %>
+                <span class="field-error"><%= errors.cardExpiry %></span>
+              <% } %>
+            </div>
+
+            <div class="field">
+              <label for="cvv">CVV</label>
+              <input
+                type="text"
+                id="cvv"
+                name="cvv"
+                inputmode="numeric"
+                autocomplete="cc-csc"
+                placeholder="000"
+                maxlength="4"
+                required
+              />
+              <% if (errors.cvv) { %>
+                <span class="field-error"><%= errors.cvv %></span>
+              <% } %>
+            </div>
+          </div>
+
+          <button id="checkout-submit" type="submit" class="btn-primary full">
+            <span class="btn-label">Finalizar compra — R$ <%= cart.total.toFixed(2).replace('.', ',') %></span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+
+        <aside class="cart-summary">
+          <h2>Resumo do pedido</h2>
+          <ul class="checkout-items">
+            <% cart.items.forEach(function(item) { %>
+              <li>
+                <span><%= item.name %> × <%= item.quantity %></span>
+                <span>R$ <%= item.lineTotal.toFixed(2).replace('.', ',') %></span>
+              </li>
+            <% }); %>
+          </ul>
+          <dl class="summary-list">
+            <dt>Subtotal</dt>
+            <dd>R$ <%= cart.subtotal.toFixed(2).replace('.', ',') %></dd>
+            <dt>Impostos (10%)</dt>
+            <dd>R$ <%= cart.taxes.toFixed(2).replace('.', ',') %></dd>
+            <dt class="summary-total">Total</dt>
+            <dd class="summary-total">R$ <%= cart.total.toFixed(2).replace('.', ',') %></dd>
+          </dl>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/checkout.js" defer></script>
+  <%- include('../partials/footer') %>

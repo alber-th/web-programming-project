@@ -1,0 +1,81 @@
+<%- include('../partials/head') %>
+<body>
+  <%- include('../partials/header') %>
+
+  <main class="container">
+    <section class="page">
+      <div class="page-header">
+        <h1>Pedido #<%= transaction.id %></h1>
+        <a href="/transactions" class="muted">← Voltar</a>
+      </div>
+
+      <%- include('../partials/flash') %>
+
+      <div class="order-detail">
+        <div class="order-card">
+          <div class="order-header">
+            <span class="status-pill status-<%= transaction.status.toLowerCase() %>">
+              <%= transaction.status %>
+            </span>
+            <span class="muted">
+              <%= new Date(transaction.createdAt).toLocaleString('pt-BR') %>
+            </span>
+          </div>
+
+          <% if (transaction.status === 'COMPLETED') { %>
+            <p class="alert alert-success">✓ Pagamento aprovado em <%= new Date(transaction.completedAt || transaction.updatedAt).toLocaleString('pt-BR') %></p>
+          <% } else if (transaction.status === 'FAILED') { %>
+            <p class="alert alert-error">✗ Pagamento não aprovado<% if (transaction.cancellationReason) { %>: <%= transaction.cancellationReason %><% } %></p>
+          <% } else if (transaction.status === 'CANCELLED') { %>
+            <p class="alert alert-error">✗ Pedido cancelado<% if (transaction.cancellationReason) { %>: <%= transaction.cancellationReason %><% } %> (<%= new Date(transaction.cancelledAt || transaction.updatedAt).toLocaleString('pt-BR') %>)</p>
+          <% } else if (transaction.status === 'PROCESSING') { %>
+            <p class="alert alert-success">⏳ Processando pagamento…</p>
+          <% } %>
+
+          <h2>Itens</h2>
+          <ul class="order-items">
+            <% (transaction.items || []).forEach(function(item) { %>
+              <li class="order-item">
+                <div class="order-item-info">
+                  <strong><%= item.product ? item.product.name : '(produto removido)' %></strong>
+                  <span class="muted"> × <%= item.quantity %></span>
+                </div>
+                <div class="order-item-price">
+                  R$ <%= (Number(item.unitPrice) * item.quantity).toFixed(2).replace('.', ',') %>
+                </div>
+              </li>
+            <% }); %>
+          </ul>
+
+          <dl class="summary-list">
+            <dt>Subtotal</dt>
+            <dd>R$ <%= Number(transaction.subtotal).toFixed(2).replace('.', ',') %></dd>
+            <dt>Impostos</dt>
+            <dd>R$ <%= Number(transaction.taxes).toFixed(2).replace('.', ',') %></dd>
+            <dt class="summary-total">Total</dt>
+            <dd class="summary-total">R$ <%= Number(transaction.totalPrice).toFixed(2).replace('.', ',') %></dd>
+          </dl>
+
+          <% if (transaction.cardLastFour) { %>
+            <p class="muted small">
+              💳 Pago com cartão final <%= transaction.cardLastFour %><% if (transaction.cardholderName) { %> em nome de <%= transaction.cardholderName %><% } %>
+            </p>
+          <% } %>
+
+          <% if (transaction.status === 'PENDING' || transaction.status === 'PROCESSING') { %>
+            <div class="order-actions">
+              <button
+                type="button"
+                class="btn-danger js-open-cancel"
+                data-transaction-id="<%= transaction.id %>"
+              >Cancelar pedido</button>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <%- include('../partials/cancel-modal') %>
+  <script src="/js/cancel-modal.js" defer></script>
+  <%- include('../partials/footer') %>
