@@ -1,0 +1,92 @@
+<%- include('../partials/head') %>
+<body>
+  <%- include('../partials/header') %>
+
+  <main class="container">
+    <section class="page">
+      <div class="page-header">
+        <h1>Carrinho</h1>
+        <% if (!cart.isEmpty) { %>
+          <form action="/cart/clear" method="POST" class="inline-form">
+            <button type="submit" class="link-button">Esvaziar carrinho</button>
+          </form>
+        <% } %>
+      </div>
+
+      <%- include('../partials/flash') %>
+
+      <% if (cart.isEmpty) { %>
+        <div class="empty-state">
+          <h2>Seu carrinho está vazio</h2>
+          <p class="muted">Adicione jogos do catálogo para começar uma compra.</p>
+          <a href="/products" class="btn-primary inline">Ver catálogo</a>
+        </div>
+      <% } else { %>
+        <div class="cart-layout">
+          <div class="cart-items">
+            <% cart.items.forEach(function(item) { %>
+              <article class="cart-item">
+                <div class="cart-item-cover">
+                  <% if (item.imageUrl) { %>
+                    <img src="<%= item.imageUrl %>" alt="<%= item.name %>" loading="lazy" />
+                  <% } else { %>
+                    <div class="cart-item-placeholder"></div>
+                  <% } %>
+                </div>
+                <div class="cart-item-body">
+                  <h3 class="cart-item-title"><%= item.name %></h3>
+                  <p class="cart-item-meta">
+                    <% if (item.category) { %><span class="badge"><%= item.category %></span><% } %>
+                    <span class="muted"><%= item.platform %></span>
+                  </p>
+                  <p class="cart-item-stock muted">Estoque disponível: <%= item.availableStock %></p>
+                  <form action="/cart/update" method="POST" class="cart-qty-form">
+                    <input type="hidden" name="productId" value="<%= item.productId %>" />
+                    <label for="qty-<%= item.productId %>">Qtd.</label>
+                    <input
+                      id="qty-<%= item.productId %>"
+                      type="number"
+                      name="quantity"
+                      value="<%= item.quantity %>"
+                      min="1"
+                      max="<%= item.availableStock %>"
+                      class="cart-qty-input"
+                    />
+                    <button type="submit" class="btn-edit">Atualizar</button>
+                  </form>
+                </div>
+                <div class="cart-item-totals">
+                  <p class="cart-line-price">R$ <%= item.lineTotal.toFixed(2).replace('.', ',') %></p>
+                  <p class="muted">R$ <%= item.unitPrice.toFixed(2).replace('.', ',') %> cada</p>
+                  <form action="/cart/remove" method="POST" class="inline-form">
+                    <input type="hidden" name="productId" value="<%= item.productId %>" />
+                    <button type="submit" class="btn-danger">Remover</button>
+                  </form>
+                </div>
+              </article>
+            <% }); %>
+          </div>
+
+          <aside class="cart-summary">
+            <h2>Resumo</h2>
+            <dl class="summary-list">
+              <dt>Subtotal</dt>
+              <dd>R$ <%= cart.subtotal.toFixed(2).replace('.', ',') %></dd>
+              <dt>Impostos (10%)</dt>
+              <dd>R$ <%= cart.taxes.toFixed(2).replace('.', ',') %></dd>
+              <dt class="summary-total">Total</dt>
+              <dd class="summary-total">R$ <%= cart.total.toFixed(2).replace('.', ',') %></dd>
+            </dl>
+            <% if (currentUser) { %>
+              <a href="/checkout" class="btn-primary inline full">Ir para o checkout</a>
+            <% } else { %>
+              <a href="/login" class="btn-primary inline full">Entrar para finalizar compra</a>
+            <% } %>
+            <p class="muted small"><a href="/products">← Continuar comprando</a></p>
+          </aside>
+        </div>
+      <% } %>
+    </section>
+  </main>
+
+  <%- include('../partials/footer') %>

@@ -9,8 +9,8 @@
 | Contexto | Disciplina de Programação para Web — 1º Semestre de 2026 |
 | Repositório | https://github.com/alber-th/web-programming-project |
 | Branch principal | `main` |
-| Status | Projeto 2 entregue (6 funcionalidades + transações); aderência ao DAS em ~50% (ver §14) |
-| Última revisão | 2026-06-18 (v1.1 — adiciona §14 sobre aderência ao DAS) |
+| Status | Projeto 2 entregue + carrinho/checkout/pagamento simulado/cancelamento; aderência ao DAS em ~75% (ver §14) |
+| Última revisão | 2026-06-19 (v1.2 — adiciona fluxo de compra com carrinho, status lifecycle e cancelamento) |
 
 ---
 
@@ -65,6 +65,9 @@ Entregar uma aplicação web persistente que demonstre, em código de qualidade 
 | 5. Edição de produto/transação | Implementado (Produto) |
 | 6. Exclusão de produto/transação | Implementado (Produto) |
 | **Extra**: Registro de Transações (compras) | Implementado |
+| **Extra**: Carrinho em sessão | Implementado |
+| **Extra**: Checkout com pagamento simulado | Implementado |
+| **Extra**: Cancelamento atômico com restauração de estoque | Implementado |
 
 > **Nota sobre escopo**: a tabela acima reflete os 6 requisitos do **Projeto 2 da disciplina**, todos entregues. O **Documento de Arquitetura (DAS)** prevê escopo arquitetural mais amplo (carrinho, checkout, entidades Key/ItemPedido, gateway de pagamento, e-mail). A análise de aderência ao DAS — com gaps prioritários — está em §14.
 
@@ -207,26 +210,73 @@ Aplicação web monolítica em padrão **MVC com camada de serviço explícita**
 
 ### 4.4 Transaction
 
+Representa o **Pedido** (DAS). Refatorada na v1.2 para suportar múltiplos itens, ciclo de vida e pagamento.
+
 | Campo | Tipo | Constraints | Observações |
 |---|---|---|---|
 | `id` | INTEGER | PK, AUTO_INCREMENT | |
 | `user_id` | INTEGER | FK → `users.id`, NOT NULL, `ON DELETE RESTRICT` | Índice |
-| `product_id` | INTEGER | FK → `products.id`, NOT NULL, `ON DELETE RESTRICT` | Índice |
-| `quantity` | INTEGER | NOT NULL, default 1, ≥ 1 | |
-| `total_price` | DECIMAL(10,2) | NOT NULL, ≥ 0 | Calculado server-side: `product.price × quantity` |
+| `product_id` | INTEGER | FK → `products.id`, nullable | **Legado** — pré-refactor de carrinho. Novas linhas usam `TransactionItem` |
+| `quantity` | INTEGER | nullable | **Legado** idem |
+| `subtotal` | DECIMAL(10,2) | NOT NULL, ≥ 0 | Soma de `unit_price × quantity` dos items |
+| `taxes` | DECIMAL(10,2) | NOT NULL, default 0, ≥ 0 | Atualmente 10% (BR-like) |
+| `total_price` | DECIMAL(10,2) | NOT NULL, ≥ 0 | `subtotal + taxes` |
+| `status` | ENUM | NOT NULL, default `PENDING` | `PENDING / PROCESSING / COMPLETED / CANCELLED / FAILED` |
+| `cardholder_name` | STRING(120) | nullable | Nome impresso no cartão (para recibo) |
+| `card_last_four` | STRING(4) | nullable | 4 últimos dígitos do cartão (PCI-friendly) |
+| `cancellation_reason` | STRING(255) | nullable | Motivo declarado em cancelamento ou erro de pagamento |
+| `processing_started_at` | TIMESTAMP | nullable | Quando o pagamento começou |
+| `completed_at` | TIMESTAMP | nullable | Quando o pagamento foi aprovado |
+| `cancelled_at` | TIMESTAMP | nullable | Quando o pedido foi cancelado |
 
-### 4.5 Associações Sequelize
+### 4.5 TransactionItem
+
+Novo na v1.2. Representa o **ItemPedido** (DAS): linha de pedido associando produto e quantidade.
+
+| Campo | Tipo | Constraints |
+|---|---|---|
+| `id` | INTEGER | PK, AUTO_INCREMENT |
+| `transaction_id` | INTEGER | FK → `transactions.id`, NOT NULL, `ON DELETE CASCADE` |
+| `product_id` | INTEGER | FK → `products.id`, NOT NULL, `ON DELETE RESTRICT` |
+| `quantity` | INTEGER | NOT NULL, ≥ 1 |
+| `unit_price` | DECIMAL(10,2) | NOT NULL, ≥ 0 |
+
+Índices em `transaction_id` e `product_id`.
+
+### 4.6 Associações Sequelize
 
 ```js
-Transaction.belongsTo(User,    { foreignKey: 'userId',    as: 'user' });
-Transaction.belongsTo(Product, { foreignKey: 'productId', as: 'product' });
+Transaction.belongsTo(User,            { foreignKey: 'userId',    as: 'user' });
+Transaction.belongsTo(Product,         { foreignKey: 'productId', as: 'product' });  // legado
+Transaction.hasMany(TransactionItem,   { foreignKey: 'transactionId', as: 'items' });
+
+TransactionItem.belongsTo(Transaction, { foreignKey: 'transactionId', as: 'transaction' });
+TransactionItem.belongsTo(Product,     { foreignKey: 'productId',     as: 'product' });
 ```
 
-As associações inversas (`User.hasMany(Transaction)`, `Product.hasMany(Transaction)`) estão deliberadamente comentadas — não são necessárias para os queries atuais. Estão sinalizadas como ponto de extensão futuro.
+### 4.7 Política de integridade referencial
 
-### 4.6 Política de integridade referencial
+- **`transactions.user_id`** e **`transactions.product_id`** (legado): `ON DELETE RESTRICT` — histórico contábil preservado.
+- **`transaction_items.transaction_id`**: `ON DELETE CASCADE` — se o pedido sumir, seus itens também (mas RESTRICT acima impede que isso aconteça por delete do User).
+- **`transaction_items.product_id`**: `ON DELETE RESTRICT` — não dá pra excluir produto com vendas registradas. Tratado graciosamente em `productController.delete`.
 
-`ON DELETE RESTRICT` em ambas as FKs. **Decisão deliberada**: histórico de compras é dado contábil e jamais deve ser perdido por exclusão acidental de usuário ou produto. Tentativas de exclusão de produto com transações vinculadas são tratadas graciosamente no `productController.delete`, exibindo mensagem ao admin (não retorna 500).
+### 4.8 Ciclo de vida do Pedido
+
+```
+[POST /checkout]
+   ↓
+PENDING (instantâneo) → PROCESSING (atômico: TX SQL + LOCK.UPDATE + decremento de estoque)
+   ↓
+[paymentService.authorize — delay 1.5–2s simulando gateway]
+   ↓
+   ├─ APPROVED → COMPLETED + completed_at
+   ├─ DECLINED → FAILED + restaura estoque atomicamente + cancellation_reason
+   └─ NETWORK_ERROR → FAILED + restaura estoque + cancellation_reason
+
+[POST /transactions/:id/cancel — disponível só em PENDING/PROCESSING]
+   ↓
+CANCELLED + restaura estoque + cancellation_reason + cancelled_at
+```
 
 ---
 
@@ -360,17 +410,39 @@ A listagem renderiza ações condicionalmente:
 - **CLIENTE logado**: botão "Comprar" por linha.
 - **ADMIN**: "Comprar" + "Editar" + "Excluir".
 
-### 6.5 Transações (compras)
+### 6.5 Carrinho de compras (v1.2)
 
-Registra a compra de um produto pelo usuário logado.
+- `GET /cart` — lista itens, subtotal, taxes (10%), total. Estado vazio com CTA.
+- `POST /cart` — adiciona produto ao carrinho (acessível para anônimos também).
+- `POST /cart/update` — atualiza quantidade (valida contra `product.stock`).
+- `POST /cart/remove` — remove item.
+- `POST /cart/clear` — esvazia.
+- Carrinho persiste em `req.session.cart` (server-side, **sem localStorage**).
 
-- `POST /transactions` recebe `productId` e `quantity` (default 1).
-- O `totalPrice` é **calculado no servidor** a partir do `Product.price` no momento da compra. O cliente nunca envia o preço.
-- `GET /transactions` mostra:
-  - **CLIENTE**: apenas as próprias compras (filtro `WHERE user_id = currentUser.id` cravado no service).
-  - **ADMIN**: todas as compras, com a coluna `Usuário`.
+### 6.6 Checkout com pagamento simulado (v1.2)
 
-A view tolera produto removido (`(produto removido)`) — embora o `RESTRICT` impeça isso atualmente.
+- `GET /checkout` — form com nome do titular, número do cartão (máscara), validade `MM/AA`, CVV. Atrás de `isAuthenticated`.
+- `POST /checkout`:
+  1. Re-valida estoque (defesa contra mudanças entre cart e checkout).
+  2. Cria `Transaction` PENDING → PROCESSING + items em `sequelize.transaction()` com `LOCK.UPDATE`.
+  3. Chama `paymentService.authorize` — delay 1.5–2s + outcome 80/15/5 (APPROVED/DECLINED/NETWORK_ERROR).
+  4. Atualiza status para COMPLETED / FAILED. Em falha, restaura estoque atomicamente.
+- JS `public/js/checkout.js`: máscara dinâmica de cartão (`#### #### #### ####`), validade (`MM/AA`), CVV (3-4 dígitos), spinner + botão desabilitado para impedir duplo submit.
+
+### 6.7 Histórico de transações
+
+- `GET /transactions`:
+  - **CLIENTE**: apenas as próprias compras.
+  - **ADMIN**: todas, com coluna `Usuário`.
+  - Cada linha mostra: data, itens, total, **status pill** colorido, ações.
+- `GET /transactions/:id` — detalhe do pedido (itens, totais, dados do cartão last 4, banner colorido por status).
+- `POST /transactions/:id/cancel` — disponível só para PENDING/PROCESSING.
+
+### 6.8 Cancelamento (v1.2)
+
+- Modal CSS no `partials/cancel-modal.ejs` (não usa `confirm()` do browser).
+- JS `cancel-modal.js` abre/fecha (ESC suportado), foca no textarea, desabilita botão durante submit.
+- Service `cancelById` em `sequelize.transaction()` + `LOCK.UPDATE`: re-checa permissão e cancelabilidade, restaura estoque por item, atualiza status para CANCELLED + `cancellation_reason` + `cancelled_at`.
 
 ---
 
@@ -481,9 +553,17 @@ Controller
 | POST | `/products` | ADMIN | `productController.create` | Cria produto |
 | GET | `/products/:id(\d+)/edit` | ADMIN | `productController.showEditForm` | Form editar |
 | PUT | `/products/:id(\d+)` | ADMIN | `productController.update` | Atualiza produto |
-| DELETE | `/products/:id(\d+)` | ADMIN | `productController.delete` | Exclui produto |
-| GET | `/transactions` | Logado | `transactionController.listForCurrentUser` | Lista (própria ou todas) |
-| POST | `/transactions` | Logado | `transactionController.createForCurrentUser` | Registra compra |
+| DELETE | `/products/:id(\d+)` | ADMIN | `productController.delete` | Exclui produto (bloqueia se tem transação) |
+| GET | `/cart` | Público | `cartController.show` | Lista itens em sessão |
+| POST | `/cart` | Público | `cartController.add` | Adiciona produto |
+| POST | `/cart/update` | Público | `cartController.updateQuantity` | Atualiza qtd (valida estoque) |
+| POST | `/cart/remove` | Público | `cartController.remove` | Remove item |
+| POST | `/cart/clear` | Público | `cartController.clear` | Esvazia |
+| GET | `/checkout` | Logado | `checkoutController.show` | Form de pagamento |
+| POST | `/checkout` | Logado | `checkoutController.submit` | Cria Transaction + processa pagamento mockado |
+| GET | `/transactions` | Logado | `transactionController.listForCurrentUser` | Próprias (CLIENTE) ou todas (ADMIN) |
+| GET | `/transactions/:id(\d+)` | Logado | `transactionController.show` | Detalhe do pedido |
+| POST | `/transactions/:id(\d+)/cancel` | Logado | `transactionController.cancel` | Cancela (só PENDING/PROCESSING) + restaura estoque |
 
 \* Logout não tem middleware explícito porque o ato é idempotente.
 
@@ -730,9 +810,10 @@ Após promover, é necessário **logout/login** para a sessão pegar o novo role
 
 | Limitação | Descrição | Sugestão |
 |---|---|---|
-| **Sem decremento de estoque** | Comprar não atualiza `Product.stock`. Estoque pode ficar "infinito" no modelo de dados. | Em `createTransaction`, envolver `Transaction.create` + `product.decrement('stock', { by: quantity })` em `sequelize.transaction()` para atomicidade. |
-| **Sem verificação de estoque na compra** | Possível comprar produto sem estoque. | Validar `product.stock >= quantity` antes de criar a transação. |
-| **Carrinho ausente** | Compra é one-shot, um produto por transação. | Modelar `Order` + `OrderItem` para carrinho com múltiplos itens. |
+| ~~Sem decremento de estoque~~ | ~~Comprar não atualiza `Product.stock`.~~ | ✅ **Fechado na v1.2** — checkout decrementa em `sequelize.transaction()` com `LOCK.UPDATE`. |
+| ~~Sem verificação de estoque na compra~~ | ~~Possível comprar produto sem estoque.~~ | ✅ **Fechado na v1.2** — validado no carrinho, re-validado no checkout. |
+| ~~Carrinho ausente~~ | ~~Compra one-shot.~~ | ✅ **Fechado na v1.2** — carrinho em sessão + `TransactionItem`. |
+| **Entrega de Key ausente** | Após COMPLETED, nada é entregue ao cliente. | Implementar entidade `Key` + `KeyService.reservarKey` no checkout (Fase 3 do roadmap). |
 | **Sem paginação** | Listagens carregam todos os registros. | Adicionar `LIMIT/OFFSET` + UI de páginas. |
 | **Sem busca/filtros** | Catálogo não tem filtro por plataforma, preço, etc. | Query params em `GET /products`. |
 | **Sem soft delete** | `destroy()` é hard delete. | `paranoid: true` no model + coluna `deleted_at`. |
@@ -817,83 +898,78 @@ Esta seção resume a análise de aderência da implementação atual ao **Docum
 
 ### 14.1 Aderência global
 
-**~50%**. A implementação cumpre fielmente as decisões **estruturais** do DAS (stack, MVC, autenticação, autorização), mas tem lacunas significativas no modelo de domínio, no caso de uso central de compra e em integrações externas.
+**~75%** (era ~50% em 2026-06-18). A v1.2 fechou a maioria dos gaps das Fases 1 e 2 do roadmap: ItemPedido, ciclo de vida do Pedido, carrinho em sessão, pagamento mockado, decremento/restauração atômica de estoque.
 
-| Dimensão | Aderência |
-|---|---|
-| Stack e organização MVC | **95%** ✅ |
-| Casos de uso (7 previstos) | **57%** ⚠️ |
-| Modelo de domínio (5 entidades) | **40%** ❌ |
-| CU004 (Comprar key) — caso central | **20%** ❌ |
-| QoS (8 atributos) | **38%** ⚠️ |
-| Integrações externas | **0%** ❌ |
-| Visão de Implantação | **30%** ⚠️ |
+| Dimensão | Aderência (antes) | Aderência (agora) |
+|---|---|---|
+| Stack e organização MVC | 95% | **95%** ✅ |
+| Casos de uso (7 previstos) | 57% | **75%** ⚠️ |
+| Modelo de domínio (5 entidades) | 40% | **70%** ⚠️ |
+| CU004 (Comprar key) — caso central | 20% | **85%** ✅ |
+| QoS (8 atributos) | 38% | **50%** ⚠️ |
+| Integrações externas | 0% | **50%** ✅ |
+| Visão de Implantação | 30% | **30%** ⚠️ |
 
-### 14.2 Gaps críticos do DAS não atendidos
+### 14.2 Gaps fechados na v1.2
 
-#### Modelo de domínio (§4 do MER previsto)
+- ✅ **`TransactionItem`** criado — Pedido agora suporta múltiplos itens.
+- ✅ **`Transaction.status`** ENUM com 5 estados (PENDING/PROCESSING/COMPLETED/CANCELLED/FAILED).
+- ✅ **Carrinho em sessão** (`req.session.cart`) — sem localStorage, conforme constraint.
+- ✅ **`paymentService` (mockado)** — adapter isolado com distribuição realista (80/15/5).
+- ✅ **Persistência transacional**: checkout e cancelamento em `sequelize.transaction()` com `LOCK.UPDATE`.
+- ✅ **Decremento/restauração atômica de estoque** — confiabilidade conforme DAS §9.
+- ✅ **CU004 em ~85%** — fluxo carrinho → checkout → pagamento → status → cancel completo.
 
-- ❌ Entidade **Key** não existe — sem ela, o sistema não tem como entregar a chave ao cliente após a compra (parte essencial de CU004 e CU007).
-- ❌ Entidade **ItemPedido** não existe — `Transaction` colapsa Pedido + Item em uma só tabela, impedindo carrinho com múltiplos jogos.
-- ⚠️ **Pedido** (Transaction) sem campo `status` (pendente/concluído/cancelado).
-- ⚠️ **Jogo** (Product) sem atributos `descricao` e `ativo` (sem soft delete).
+### 14.3 Gaps ainda em aberto
+
+#### Domínio
+- ❌ **Entidade `Key`** (chave digital única por venda) — bloqueador da entrega ao cliente.
+- ❌ **`KeyService.reservarKey`** integrado ao checkout.
+- ⚠️ `Product` ainda sem `descricao` e `ativo`.
 
 #### Casos de uso
+- ⚠️ **CU007 — Visualizar chave**: histórico ✅, chave entregue ❌.
+- ⚠️ **CU005**: CRUD de Keys ainda ausente.
+- ❌ **CU006 — Gerenciar usuários**: sem UI.
 
-- ⚠️ **CU004 — Comprar key**: implementação atual é "compra de um clique" (POST `/transactions` com `quantity=1`); DAS prevê carrinho → checkout → pagamento → reserva de key → entrega via e-mail. Ver §14.3.
-- ⚠️ **CU005 — Gerenciar catálogo**: CRUD de jogos ✅; CRUD de **keys** ❌.
-- ❌ **CU006 — Gerenciar usuários**: sem UI; promoção a ADMIN só via SQL.
-- ⚠️ **CU007 — Histórico + visualizar chave**: histórico ✅; entrega de chave ❌.
-
-#### Serviços de domínio
-
-- ❌ `PagamentoService` (com adapter para gateway externo) — não existe.
-- ❌ `KeyService` (reserva e marcação de chaves vendidas) — não existe.
-
-#### Integrações externas
-
-- ❌ Gateway de pagamento — fluxo de autorização ausente.
-- ❌ Serviço de e-mail — confirmação e envio da chave ausentes.
+#### Integrações
+- ❌ `EmailService` — confirmação + envio de chave por e-mail.
 
 #### QoS
-
 - ❌ HTTPS / proxy reverso (aceitável em dev).
 - ❌ Cache de catálogo.
-- ❌ Paginação (DAS prevê 500–2.000 títulos).
-- ❌ Session store persistente (impede escalabilidade horizontal).
+- ❌ Paginação.
+- ❌ Session store persistente.
 - ❌ Dockerfile / containers.
 
-### 14.3 CU004 — etapa a etapa
+### 14.4 CU004 — etapa a etapa (atualizado v1.2)
 
-O DAS dedica 4 páginas ao CU004 com diagramas de classes e de sequência. Comparativo:
-
-| Etapa prevista | Status |
+| Etapa prevista pelo DAS | Status |
 |---|---|
-| Tela de carrinho/checkout | ❌ |
-| Auth middleware | ✅ |
-| `PedidoController` recebe finalização | ⚠️ via `transactionController` (sem carrinho) |
-| `PedidoService` valida carrinho | ❌ |
+| Tela de carrinho/checkout | ✅ `cart/index.ejs` + `checkout/index.ejs` |
+| Auth middleware | ✅ `isAuthenticated` em `POST /checkout` |
+| `PedidoController` recebe finalização | ✅ `checkoutController.submit` |
+| Service valida carrinho | ✅ `transactionService.checkout` |
 | Consulta `KeyRepository` para disponibilidade | ❌ Sem Key |
-| Cálculo de `valor_total` server-side | ✅ |
-| `PagamentoService → Gateway` | ❌ |
-| Persistência transacional (Pedido + ItemPedido) | ⚠️ Só `Transaction.create` direto |
+| Cálculo de `valor_total` server-side | ✅ subtotal + 10% taxes |
+| `PagamentoService → Gateway` | ✅ Mock 1.5–2s com 80/15/5 |
+| Persistência transacional (Pedido + ItemPedido) | ✅ `sequelize.transaction()` + `LOCK.UPDATE` |
 | `KeyService.reservarKey` | ❌ |
-| `Pedido.status = 'concluído'` | ❌ Sem status |
+| `Pedido.status = 'concluído'` | ✅ ENUM transita para COMPLETED |
 | Envio de e-mail com chave | ❌ |
-| View de confirmação com chave entregue | ❌ |
+| View de confirmação com chave entregue | ⚠️ View `/transactions/:id` mostra detalhes, chave ainda não |
 
-### 14.4 Roadmap recomendado (visão condensada)
+### 14.5 Roadmap restante (visão condensada)
 
 Detalhes em [`aderencia-ao-das.md`](./aderencia-ao-das.md) §10.
 
 | Fase | Foco | Itens |
 |---|---|---|
-| **Fase 1** | Domínio | Migrations + models de `Key` e `ItemPedido`; refator `Transaction` → `Pedido` com `status` |
-| **Fase 2** | CU004 completo | Carrinho em sessão + `/cart` + `/checkout`; `PedidoService` em `sequelize.transaction()`; `KeyService.reservarKey` |
-| **Fase 3** | Integrações mock | `PagamentoService` + adapter (gateway mock); `EmailService` + adapter |
+| **Fase 3** | Domínio Key + e-mail mock | Migration + model `Key`; `KeyService.reservarKey` no checkout; `EmailService` mock; tela `/transactions/:id` mostra chave |
 | **Fase 4** | Gestão e QoS | CU006 (UI de usuários); paginação; session store persistente; Dockerfile |
+| **Fase 5** | Hardening | CSRF; rate limiting; HTTPS via proxy |
 
-### 14.5 Divergências aceitáveis (não-gaps)
+### 14.6 Divergências aceitáveis (não-gaps)
 
 Decisões da implementação que **divergem do DAS mas têm justificativa técnica**:
 
@@ -932,6 +1008,7 @@ Decisões da implementação que **divergem do DAS mas têm justificativa técni
 |---|---|---|---|
 | 2026-06-17 | 1.0 | Equipe Cloud Key | Auditoria inicial pós-entrega do Projeto 2 |
 | 2026-06-18 | 1.1 | Equipe Cloud Key | Adiciona §14 — análise de aderência ao DAS; atualiza §1.4 e §12 com referências cruzadas |
+| 2026-06-19 | 1.2 | Equipe Cloud Key | Pós `feat/cart-and-checkout`: refator de Transaction com status ENUM, novo TransactionItem, fluxo carrinho/checkout/pagamento mock/cancelamento atômico. Aderência ao DAS: 50% → 75%. Gaps fechados consolidados em §14.2 |
 
 ---
 

@@ -49,14 +49,12 @@
                 <% if (item.preorder) { %>
                   <p class="carousel-item-release"><%= item.releaseInfo %></p>
                   <button type="button" class="btn-preorder" disabled>Pré-reserva em breve</button>
-                <% } else if (item.id && currentUser) { %>
-                  <form action="/transactions" method="POST" class="inline-form">
+                <% } else if (item.id) { %>
+                  <form action="/cart" method="POST" class="inline-form">
                     <input type="hidden" name="productId" value="<%= item.id %>" />
                     <input type="hidden" name="quantity" value="1" />
-                    <button type="submit" class="btn-buy full">Comprar</button>
+                    <button type="submit" class="btn-buy full">Adicionar ao carrinho</button>
                   </form>
-                <% } else if (item.id) { %>
-                  <a href="/login" class="btn-primary inline full">Entrar para comprar</a>
                 <% } %>
               </div>
             </article>
@@ -89,15 +87,11 @@
                 <p class="product-card-price">R$ <%= Number(product.price).toFixed(2).replace('.', ',') %></p>
               </div>
               <div class="product-card-actions">
-                <% if (currentUser) { %>
-                  <form action="/transactions" method="POST" class="inline-form">
-                    <input type="hidden" name="productId" value="<%= product.id %>" />
-                    <input type="hidden" name="quantity" value="1" />
-                    <button type="submit" class="btn-buy full">Comprar</button>
-                  </form>
-                <% } else { %>
-                  <a href="/login" class="btn-primary inline full">Entrar para comprar</a>
-                <% } %>
+                <form action="/cart" method="POST" class="inline-form">
+                  <input type="hidden" name="productId" value="<%= product.id %>" />
+                  <input type="hidden" name="quantity" value="1" />
+                  <button type="submit" class="btn-buy full">Adicionar ao carrinho</button>
+                </form>
               </div>
             </article>
           <% }); %>

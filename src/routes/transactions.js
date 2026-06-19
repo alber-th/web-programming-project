@@ -7,6 +7,7 @@ const { isAuthenticated } = require('../middlewares/auth');
 const router = express.Router();
 
 router.get('/transactions', isAuthenticated, transactionController.listForCurrentUser);
-router.post('/transactions', isAuthenticated, transactionController.createForCurrentUser);
+router.get('/transactions/:id(\\d+)', isAuthenticated, transactionController.show);
+router.post('/transactions/:id(\\d+)/cancel', isAuthenticated, transactionController.cancel);
 
 module.exports = router;

@@ -11,24 +11,27 @@
       <%- include('../partials/flash') %>
 
       <% if (transactions.length === 0) { %>
-        <p class="muted">
-          Nenhuma transação registrada ainda.
-          <a href="/products">Ver produtos</a>.
-        </p>
+        <div class="empty-state">
+          <h2>Você ainda não tem pedidos</h2>
+          <p class="muted">Comece pelo <a href="/products">catálogo</a>.</p>
+        </div>
       <% } else { %>
         <table class="data-table">
           <thead>
             <tr>
+              <th>#</th>
               <th>Data</th>
               <% if (isAdmin) { %><th>Usuário</th><% } %>
-              <th>Produto</th>
-              <th>Quantidade</th>
+              <th>Itens</th>
               <th>Total</th>
+              <th>Status</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
             <% transactions.forEach(function (tx) { %>
               <tr>
+                <td>#<%= tx.id %></td>
                 <td>
                   <%= new Date(tx.createdAt).toLocaleString('pt-BR', {
                     day: '2-digit', month: '2-digit', year: 'numeric',
@@ -38,9 +41,49 @@
                 <% if (isAdmin) { %>
                   <td><%= tx.user ? tx.user.name : '—' %></td>
                 <% } %>
-                <td><%= tx.product ? tx.product.name : '(produto removido)' %></td>
-                <td><%= tx.quantity %></td>
+                <td>
+                  <% if (tx.items && tx.items.length > 0) { %>
+                    <ul class="tx-items">
+                      <% tx.items.forEach(function (item) { %>
+                        <li>
+                          <%= item.product ? item.product.name : '(removido)' %>
+                          × <%= item.quantity %>
+                        </li>
+                      <% }); %>
+                    </ul>
+                  <% } else if (tx.product) { %>
+                    <%= tx.product.name %> × <%= tx.quantity %>
+                  <% } else { %>
+                    <span class="muted">—</span>
+                  <% } %>
+                </td>
                 <td>R$ <%= Number(tx.totalPrice).toFixed(2).replace('.', ',') %></td>
+                <td>
+                  <span class="status-pill status-<%= tx.status.toLowerCase() %>">
+                    <%= tx.status %>
+                  </span>
+                  <% if (tx.status === 'CANCELLED' && tx.cancellationReason) { %>
+                    <p class="muted small" title="<%= tx.cancellationReason %>">
+                      <%= tx.cancellationReason.length > 40
+                          ? tx.cancellationReason.slice(0, 40) + '…'
+                          : tx.cancellationReason %>
+                    </p>
+                  <% } else if (tx.status === 'FAILED' && tx.cancellationReason) { %>
+                    <p class="muted small"><%= tx.cancellationReason %></p>
+                  <% } %>
+                </td>
+                <td>
+                  <div class="actions">
+                    <a class="btn-edit" href="/transactions/<%= tx.id %>">Detalhes</a>
+                    <% if ((tx.status === 'PENDING' || tx.status === 'PROCESSING') && (!isAdmin || tx.userId === currentUser.id)) { %>
+                      <button
+                        type="button"
+                        class="btn-danger js-open-cancel"
+                        data-transaction-id="<%= tx.id %>"
+                      >Cancelar</button>
+                    <% } %>
+                  </div>
+                </td>
               </tr>
             <% }); %>
           </tbody>
@@ -49,4 +92,6 @@
     </section>
   </main>
 
+  <%- include('../partials/cancel-modal') %>
+  <script src="/js/cancel-modal.js" defer></script>
   <%- include('../partials/footer') %>

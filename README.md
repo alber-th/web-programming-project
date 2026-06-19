@@ -7,15 +7,19 @@ da disciplina de **Programação para Web** (1º Semestre de 2026).
 
 ## Funcionalidades
 
-Cobertura completa dos requisitos do Projeto 2 e um extra de domínio:
+Cobertura completa dos requisitos do Projeto 2 mais um fluxo de compra completo (carrinho, checkout, pagamento simulado, cancelamento):
 
 1. **Cadastro de usuário** — `/register` com validação de campos, e-mail único e senha armazenada como hash bcrypt.
-2. **Login / Logout** — sessão via `express-session`, cookie `httpOnly`, flash de boas-vindas e suporte a `returnTo` (volta para a rota interceptada após autenticar).
+2. **Login / Logout** — sessão via `express-session`, cookie `httpOnly`, flash de boas-vindas e suporte a `returnTo`.
 3. **Cadastro de produto** — `/products/new`, restrito a `ADMIN`.
-4. **Listagem de produtos** — `/products`, pública (catálogo). Botões de ação variam por role.
+4. **Listagem de produtos** — `/products` e Home (vitrine com carrossel de destaques), pública.
 5. **Edição de produto** — `/products/:id/edit`, `ADMIN`.
 6. **Exclusão de produto** — `DELETE /products/:id`, `ADMIN`. Bloqueia exclusão de produto com transações vinculadas.
-7. **Transações (extra)** — `POST /transactions` registra compra do usuário logado; `GET /transactions` mostra as próprias compras (CLIENTE) ou todas (ADMIN).
+7. **Carrinho de compras** — `req.session.cart` server-side (sem localStorage). Subtotal, taxas (10%) e total recalculados a cada request. Validação de estoque em add/update.
+8. **Checkout com pagamento simulado** — form com máscara de cartão; serviço de pagamento mock (delay 1.5–2s) com outcome 80/15/5 (APPROVED/DECLINED/NETWORK_ERROR). Cria `Transaction` em `sequelize.transaction()` com `LOCK.UPDATE` + decremento atômico de estoque.
+9. **Ciclo de vida do pedido** — status ENUM `PENDING → PROCESSING → COMPLETED | CANCELLED | FAILED`. Em falha de pagamento, estoque restaurado atomicamente.
+10. **Cancelamento** — disponível para `PENDING`/`PROCESSING`. Modal CSS de confirmação; restaura estoque por item; grava motivo e timestamp.
+11. **Histórico** — `/transactions` (próprias para CLIENTE, todas para ADMIN) + `/transactions/:id` com detalhes do pedido.
 
 ## Stack
 
@@ -123,8 +127,16 @@ Foreign keys com `ON DELETE RESTRICT` para preservar histórico de compras.
 | GET    | `/products/:id/edit`  | `ADMIN`            | Form de edição                             |
 | PUT    | `/products/:id`       | `ADMIN`            | Atualiza produto                           |
 | DELETE | `/products/:id`       | `ADMIN`            | Exclui produto (bloqueia se tem transação) |
+| GET    | `/cart`               | Público            | Lista itens do carrinho em sessão          |
+| POST   | `/cart`               | Público            | Adiciona produto                           |
+| POST   | `/cart/update`        | Público            | Atualiza quantidade (valida estoque)       |
+| POST   | `/cart/remove`        | Público            | Remove item                                |
+| POST   | `/cart/clear`         | Público            | Esvazia                                    |
+| GET    | `/checkout`           | Logado             | Form de pagamento                          |
+| POST   | `/checkout`           | Logado             | Cria Transaction + processa pagamento mock |
 | GET    | `/transactions`       | Logado             | Próprias (CLIENTE) ou todas (ADMIN)        |
-| POST   | `/transactions`       | Logado             | Registra compra (`totalPrice` server-side) |
+| GET    | `/transactions/:id`   | Logado             | Detalhe do pedido com itens e status       |
+| POST   | `/transactions/:id/cancel` | Logado        | Cancela (PENDING/PROCESSING) + restaura estoque |
 
 `PUT` e `DELETE` chegam via `method-override` lendo `?_method=PUT/DELETE` em forms POST.
 
@@ -222,10 +234,15 @@ Veja `.env.example`. Resumo:
 - [x] Middleware de autenticação (`isAuthenticated`) e autorização por role (`requireRole`)
 - [x] CRUD de produtos (chaves de jogos)
 - [x] Registro de transações (compra do usuário logado)
-- [ ] Decremento de estoque atômico no `POST /transactions` (SQL transaction)
+- [x] Carrinho com múltiplos itens (TransactionItem)
+- [x] Checkout com pagamento simulado e ciclo de vida do pedido
+- [x] Decremento e restauração de estoque atômicos em `sequelize.transaction()`
+- [x] Cancelamento de pedido com modal e motivo
+- [ ] Entidade `Key` (chave digital única) + `KeyService.reservarKey`
+- [ ] Envio de e-mail de confirmação com chave (mock)
+- [ ] Gerenciamento de usuários (CRUD admin)
 - [ ] Proteção CSRF nos forms
 - [ ] Paginação na listagem de produtos e transações
-- [ ] Carrinho com múltiplos itens (Order + OrderItem)
 
 ## Histórico de entregas
 
@@ -237,3 +254,5 @@ Cada feature foi entregue em uma branch e PR independente:
 4. `feat/product-create` — `requireRole('ADMIN')`, `POST /products`.
 5. `feat/product-crud` — listagem, edição, exclusão (`method-override`).
 6. `feat/transactions` — model Transaction com FKs `RESTRICT`, botão Comprar, listagem por role.
+7. `feat/home-storefront` — vitrine com carrossel de destaques (GTA 6 pré-venda) e CTA admin no hero.
+8. `feat/cart-and-checkout` — carrinho em sessão, checkout com pagamento mockado, TransactionItem, ciclo de vida do pedido, cancelamento atômico.
