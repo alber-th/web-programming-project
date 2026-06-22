@@ -22,3 +22,7 @@ coverage/
 
 dist/
 build/
+
+# Material de apresentação (não versionar)
+docs/roteiro-apresentacao.md
+docs/*[Ss]lide*
